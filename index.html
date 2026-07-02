@@ -231,25 +231,19 @@
             padding: 4px 6px;
             margin-bottom: 6px;
             border-radius: 6px;
-            border: 2px solid #cbd5e1;
+            border: 2px solid #e2e8f0;
             cursor: pointer;
             display: flex;
             flex-direction: column;
             gap: 2px;
             font-size: 0.7rem;
-            /* 미선택 과목: 필수과목과 동일한 회색 음영 */
-            background-color: #e2e8f0;
-            color: #64748b;
+            background-color: white;
             position: relative;
             z-index: 10;
             transition: all 0.2s ease;
         }
 
-        /* 미선택 과목 체크박스·과목명도 흐리게 */
-        .course-item:not(.selected):not(.mandatory) .check-box { color: #94a3b8; }
-        .course-item:not(.selected):not(.mandatory) .course-name { color: #64748b; }
-        .course-item:not(.selected):not(.mandatory) .tag { opacity: 0.55; }
-
+        /* 학교지정 필수과목: 회색 음영 */
         .course-item.mandatory { 
             cursor: default; 
             background-color: #e2e8f0;
@@ -261,12 +255,11 @@
 
         .course-item.group-hover {
             border-color: #64748b !important;
-            box-shadow: 0 0 0 2px rgba(100, 116, 139, 0.15);
+            box-shadow: 0 0 0 2px rgba(100, 116, 139, 0.1);
             transform: translateY(-1px);
-            background-color: #d8dfe8 !important;
         }
 
-        /* 선택 과목: 진한 자주색 배경 + 굵은 테두리 + 흰 글씨 */
+        /* 선택 과목: 진한 자주색 배경 + 흰 글씨 */
         .course-item.selected {
             background-color: var(--md-sys-color-primary) !important;
             border-color: var(--md-sys-color-primary) !important;
@@ -276,10 +269,6 @@
         .course-item.selected .check-box { color: #ffdadb !important; }
         .course-item.selected .course-name { color: white !important; }
         .course-item.selected .tag { opacity: 1 !important; }
-        /* 선택 과목의 학점 표시도 흰색으로 */
-        .course-item.selected span[style*="color:var(--md-sys-color-primary)"] {
-            color: #ffdadb !important;
-        }
 
         .course-item.group-complete:not(.selected) {
             border-color: #22c55e;
@@ -290,7 +279,7 @@
         }
 
         .item-row { display: flex; align-items: flex-start; gap: 6px; width: 100%; }
-        .check-box { font-size: 16px; color: #94a3b8; flex-shrink: 0; }
+        .check-box { font-size: 16px; color: #cbd5e1; flex-shrink: 0; }
         .mandatory .check-box { color: #94a3b8; }
         .selected .check-box { color: #ffdadb; }
         .course-name { font-weight: 700; flex: 1; line-height: 1.2; word-break: keep-all; }
@@ -1469,17 +1458,12 @@
             const source = document.getElementById('tab-simulator');
             const colCount = semesters.length; // 6
 
-            // 각 학기 패널의 전체 내용 높이 계산
-            const contents = Array.from(document.querySelectorAll('.semester-content'));
-            const maxContentH = Math.max(...contents.map(c => c.scrollHeight)) + 60; // 여유 60px
-
-            // 오프스크린 컨테이너 생성
+            // 오프스크린 컨테이너 생성 (높이는 내용 렌더 후 동적 결정)
             offscreen = document.createElement('div');
             offscreen.style.cssText = `
                 position: fixed;
                 top: 0; left: -9999px;
                 width: ${Math.max(document.getElementById('simWrapper').offsetWidth, colCount * 200 + (colCount-1)*40 + 40)}px;
-                height: ${maxContentH}px;
                 background: #e2e8f0;
                 display: grid;
                 grid-template-columns: repeat(${colCount}, 1fr);
@@ -1488,6 +1472,7 @@
                 box-sizing: border-box;
                 z-index: -1;
                 overflow: visible;
+                height: auto;
             `;
             document.body.appendChild(offscreen);
 
@@ -1546,15 +1531,17 @@
             // 렌더링 안정화 대기
             await new Promise(r => setTimeout(r, 200));
 
+            // 실제 렌더된 높이를 정확히 측정 (공백 제거)
+            const actualH = offscreen.getBoundingClientRect().height || offscreen.scrollHeight;
             const canvas = await html2canvas(offscreen, {
                 scale: 2,
                 useCORS: true,
                 backgroundColor: '#e2e8f0',
                 logging: false,
                 width: offscreen.offsetWidth,
-                height: offscreen.scrollHeight,
+                height: actualH,
                 windowWidth: offscreen.offsetWidth,
-                windowHeight: offscreen.scrollHeight,
+                windowHeight: actualH,
                 scrollX: 0,
                 scrollY: 0,
             });
