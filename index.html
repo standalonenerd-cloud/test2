@@ -384,6 +384,19 @@
         .admission-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.78rem; }
         .admission-table th, .admission-table td { padding: 10px; border-bottom: 1px solid #e2e8f0; }
         .admission-table th { position: sticky; top: 0; z-index: 2; background: #3b0014; color: white; text-align: left; }
+
+        /* 업로드 탭 */
+        #uploadDropZone:hover, #uploadDropZone.dragover {
+            border-color: var(--md-sys-color-primary);
+            background: #fff0f3;
+        }
+        #uploadDropZone.dragover { transform: scale(1.01); }
+        .upload-preview-table { width:100%; border-collapse:collapse; }
+        .upload-preview-table th { background:#f1f5f9; color:#334155; font-size:0.72rem; padding:6px 8px; text-align:left; border-bottom:2px solid #e2e8f0; white-space:nowrap; }
+        .upload-preview-table td { padding:5px 8px; border-bottom:1px solid #f1f5f9; color:#1e293b; white-space:nowrap; }
+        .upload-preview-table tr:hover td { background:#f8fafc; }
+        .upload-badge-sem { display:inline-block; padding:1px 6px; border-radius:999px; font-size:0.65rem; font-weight:700; color:white; background:var(--md-sys-color-primary); }
+        .upload-badge-notfound { background:#94a3b8; }
     </style>
 </head>
 <body>
@@ -414,6 +427,10 @@
 
 <div class="main-tabs">
     <button class="main-tab-btn active" onclick="switchTab('simulator')">로드맵 시뮬레이터</button>
+    <button class="main-tab-btn" onclick="switchTab('upload')">
+        <span class="material-icons-round" style="font-size:14px;vertical-align:middle;">upload_file</span>
+        학생 과목 불러오기
+    </button>
     <button class="main-tab-btn" onclick="switchTab('admission')">대입 권장과목 검색</button>
     <button class="main-tab-btn utility" onclick="switchTab('full')">원자료 표</button>
 </div>
@@ -425,6 +442,47 @@
 
 <div id="tab-full" class="hidden" style="flex:1; overflow:auto; padding:16px;">
     <div id="fullViewContent"></div>
+</div>
+
+<div id="tab-upload" class="hidden" style="flex:1; overflow:auto; padding:24px; background:#f1f3f6; display:flex; flex-direction:column; gap:16px;">
+    <div style="background:white; border:1px solid #dbe3ef; border-radius:12px; padding:20px; box-shadow:0 2px 5px rgba(15,23,42,0.06);">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+            <span class="material-icons-round" style="color:var(--md-sys-color-primary); font-size:22px;">upload_file</span>
+            <h2 style="margin:0; font-size:1rem; color:#0f172a;">학생 교육과정 엑셀 불러오기</h2>
+        </div>
+        <p style="margin:0 0 16px; font-size:0.82rem; color:#64748b;">학교에서 발급한 교육과정 엑셀 파일(.xls / .xlsx)을 업로드하면 선택과목이 자동으로 체크됩니다.<br>파일 형식: 과목명(D열) · 학기별 학점(G~L열) 구조의 표준 양식</p>
+        
+        <!-- 드래그앤드롭 영역 -->
+        <label id="uploadDropZone" for="xlsUploadInput" style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; border:2px dashed #cbd5e1; border-radius:10px; padding:36px 20px; cursor:pointer; transition:all 0.2s; background:#f8fafc;">
+            <span class="material-icons-round" style="font-size:40px; color:#94a3b8;">cloud_upload</span>
+            <span style="font-size:0.9rem; font-weight:700; color:#475569;">클릭하거나 파일을 여기에 드래그하세요</span>
+            <span style="font-size:0.75rem; color:#94a3b8;">.xls · .xlsx 파일 지원</span>
+        </label>
+        <input type="file" id="xlsUploadInput" accept=".xls,.xlsx" style="display:none;" onchange="handleXlsUpload(this.files[0])">
+    </div>
+
+    <!-- 결과 패널 (업로드 전엔 숨김) -->
+    <div id="uploadResultPanel" class="hidden" style="background:white; border:1px solid #dbe3ef; border-radius:12px; padding:20px; box-shadow:0 2px 5px rgba(15,23,42,0.06);">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span class="material-icons-round" style="color:#15803d; font-size:20px;">check_circle</span>
+                <span id="uploadResultTitle" style="font-weight:700; color:#0f172a; font-size:0.95rem;"></span>
+            </div>
+            <button onclick="applyUploadedCourses()" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:var(--md-sys-color-primary);color:white;border:none;border-radius:8px;font-size:0.82rem;font-weight:700;cursor:pointer;">
+                <span class="material-icons-round" style="font-size:16px;">play_arrow</span>시뮬레이터에 적용
+            </button>
+        </div>
+        <div id="uploadPreviewTable" style="overflow-x:auto; font-size:0.78rem;"></div>
+        <p style="margin:12px 0 0; font-size:0.75rem; color:#94a3b8;">* 학교지정 필수과목은 항상 체크 상태이므로 자동 적용 목록에서 제외됩니다. 위 과목들이 선택과목으로 체크됩니다.</p>
+    </div>
+
+    <!-- 오류 패널 -->
+    <div id="uploadErrorPanel" class="hidden" style="background:#fff1f2; border:1px solid #fecdd3; border-radius:12px; padding:16px;">
+        <div style="display:flex; align-items:center; gap:8px; color:#be123c;">
+            <span class="material-icons-round">error</span>
+            <span id="uploadErrorMsg" style="font-weight:700; font-size:0.85rem;"></span>
+        </div>
+    </div>
 </div>
 
 <div id="tab-admission" class="hidden admission-container">
@@ -721,6 +779,7 @@
         document.getElementById('simWrapper').classList.toggle('hidden', tab !== 'simulator');
         document.getElementById('tab-full').classList.toggle('hidden', tab !== 'full');
         document.getElementById('tab-admission').classList.toggle('hidden', tab !== 'admission');
+        document.getElementById('tab-upload').classList.toggle('hidden', tab !== 'upload');
         document.querySelectorAll('.main-tab-btn').forEach(btn => btn.classList.toggle('active', btn.getAttribute('onclick').includes(tab)));
         if (tab === 'full') renderFullView();
         else if (tab === 'admission') initAdmissionSearch();
@@ -1134,6 +1193,222 @@
             <td>${row.note || ''}</td>
         </tr>`).join('');
         document.getElementById('admissionCountInfo').innerHTML = `검색 결과: <strong>${filtered.length}</strong>건`;
+    }
+
+    // =====================================================================
+    // 학생 과목 엑셀 불러오기 기능
+    // =====================================================================
+
+    // SheetJS 동적 로드 (업로드 탭 첫 진입 시 1회)
+    function loadSheetJS() {
+        return new Promise((resolve, reject) => {
+            if (window.XLSX) { resolve(); return; }
+            const s = document.createElement('script');
+            s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+            s.onload = resolve;
+            s.onerror = () => reject(new Error('SheetJS 로드 실패'));
+            document.head.appendChild(s);
+        });
+    }
+
+    // 드래그앤드롭 이벤트 설정
+    window.addEventListener('DOMContentLoaded', () => {
+        const zone = document.getElementById('uploadDropZone');
+        if (!zone) return;
+        zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+        zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+        zone.addEventListener('drop', e => {
+            e.preventDefault(); zone.classList.remove('dragover');
+            const f = e.dataTransfer.files[0];
+            if (f) handleXlsUpload(f);
+        });
+    });
+
+    // 과목명 정규화 (별표, 공백, 특수문자 제거)
+    function normName(s) {
+        return String(s || '').trim().replace(/\*/g,'').replace(/\s/g,'').replace(/·/g,'·');
+    }
+
+    // 엑셀에서 추출한 (학기, 과목명) 쌍을 CSV rawData에서 찾아 rowId 반환
+    function findRowId(sem, xlsName) {
+        const norm = normName(xlsName);
+        const found = rawData.find(r => {
+            const cr = parseInt(r[`${sem}_학점`] || '0');
+            if (cr <= 0) return false;
+            return normName(r['과목명']) === norm;
+        });
+        return found ? `${sem}_${found['과목명']}` : null;
+    }
+
+    // 엑셀 열 인덱스 → 학기 매핑 (0-based)
+    // 엑셀 파일 구조: G열(idx6)=1-1, H열(idx7)=1-2, I열(idx8)=2-1, J열(idx9)=2-2, K열(idx10)=3-1, L열(idx11)=3-2
+    const XLS_SEM_COL = { 6:"1-1", 7:"1-2", 8:"2-1", 9:"2-2", 10:"3-1", 11:"3-2" };
+
+    let _pendingUploadSelections = []; // 파싱 결과 임시 저장
+
+    async function handleXlsUpload(file) {
+        if (!file) return;
+        const errorPanel = document.getElementById('uploadErrorPanel');
+        const resultPanel = document.getElementById('uploadResultPanel');
+        errorPanel.classList.add('hidden');
+        resultPanel.classList.add('hidden');
+
+        // 파일 확장자 체크
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (!['xls','xlsx'].includes(ext)) {
+            showUploadError('xls 또는 xlsx 파일만 지원합니다.');
+            return;
+        }
+
+        try {
+            await loadSheetJS();
+        } catch (e) {
+            showUploadError('SheetJS 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인해주세요.');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const wb = XLSX.read(data, { type: 'array' });
+                const ws = wb.Sheets[wb.SheetNames[0]];
+                const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+                // 데이터 시작 행 찾기 (구분 컬럼이 있는 헤더 행 이후)
+                let dataStart = 0;
+                for (let i = 0; i < Math.min(rows.length, 15); i++) {
+                    if (String(rows[i][0] || '').includes('학교지정') ||
+                        String(rows[i][0] || '').includes('학생선택') ||
+                        String(rows[i][3] || '').includes('공통국어')) {
+                        dataStart = i; break;
+                    }
+                }
+
+                // rawData가 아직 안 로드됐으면 안내
+                if (!rawData || rawData.length === 0) {
+                    showUploadError('시뮬레이터 데이터가 아직 로딩 중입니다. 잠시 후 다시 시도해주세요.');
+                    return;
+                }
+
+                const parsed = [];   // { sem, xlsName, rowId, found }
+                const MANDATORY_NORM = new Set(
+                    rawData.filter(r => r['학교지정'] === 'True').map(r => normName(r['과목명']))
+                );
+
+                for (let ri = dataStart; ri < rows.length; ri++) {
+                    const row = rows[ri];
+                    const xlsName = String(row[3] || '').trim();
+                    if (!xlsName || xlsName === '합계' || xlsName === '과목 수') continue;
+
+                    // 각 학기 열 검사
+                    for (const [colIdx, sem] of Object.entries(XLS_SEM_COL)) {
+                        const cellVal = String(row[colIdx] || '').trim();
+                        // 숫자(학점)가 있고 '[택' 같은 안내문이 아닌 경우
+                        if (!cellVal || isNaN(Number(cellVal)) || Number(cellVal) <= 0) continue;
+
+                        const cleanName = xlsName.replace(/\*/g, '').trim();
+                        // 필수과목이면 건너뜀
+                        if (MANDATORY_NORM.has(normName(cleanName))) continue;
+
+                        const rowId = findRowId(sem, cleanName);
+                        parsed.push({ sem, xlsName: cleanName, rowId, found: !!rowId });
+                    }
+                }
+
+                if (parsed.length === 0) {
+                    showUploadError('파일에서 선택과목 데이터를 찾을 수 없습니다. 표준 양식(.xls/.xlsx)인지 확인해주세요.');
+                    return;
+                }
+
+                _pendingUploadSelections = parsed;
+                renderUploadPreview(file.name, parsed);
+
+            } catch (err) {
+                showUploadError('파일을 읽는 중 오류가 발생했습니다: ' + err.message);
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    function renderUploadPreview(filename, parsed) {
+        const SEM_LABEL = {"1-1":"1학년 1학기","1-2":"1학년 2학기","2-1":"2학년 1학기","2-2":"2학년 2학기","3-1":"3학년 1학기","3-2":"3학년 2학기"};
+        const found = parsed.filter(p => p.found);
+        const notFound = parsed.filter(p => !p.found);
+
+        document.getElementById('uploadResultTitle').textContent =
+            `${filename} — 선택과목 ${found.length}개 인식 (미매칭 ${notFound.length}개)`;
+
+        let html = `<table class="upload-preview-table">
+            <thead><tr><th>학기</th><th>과목명</th><th>시뮬레이터 매칭</th></tr></thead><tbody>`;
+        parsed.sort((a,b)=> semesters.indexOf(a.sem) - semesters.indexOf(b.sem) || a.xlsName.localeCompare(b.xlsName))
+            .forEach(p => {
+                const semLabel = SEM_LABEL[p.sem] || p.sem;
+                const badge = p.found
+                    ? `<span class="upload-badge-sem">✓ 매칭됨</span>`
+                    : `<span class="upload-badge-sem upload-badge-notfound">✗ 미매칭</span>`;
+                html += `<tr>
+                    <td><span class="upload-badge-sem" style="background:${p.sem.startsWith('1')? '#6366f1': p.sem.startsWith('2')? '#0891b2':'#059669'}">${semLabel}</span></td>
+                    <td>${p.xlsName}</td>
+                    <td>${badge}${!p.found ? ` <span style="color:#94a3b8; font-size:0.7rem;">(현재 과정에 없는 과목)</span>` : ''}</td>
+                </tr>`;
+            });
+        if (notFound.length > 0) {
+            html += `<tr style="background:#fef9c3;"><td colspan="3" style="color:#92400e; font-size:0.72rem; padding:6px 8px;">
+                ⚠ 미매칭 과목은 현재 선택된 과정(일반/음악)에 없는 과목이거나, 이미 학교지정 필수과목입니다.
+            </td></tr>`;
+        }
+        html += '</tbody></table>';
+
+        document.getElementById('uploadPreviewTable').innerHTML = html;
+        document.getElementById('uploadResultPanel').classList.remove('hidden');
+    }
+
+    function applyUploadedCourses() {
+        const toApply = _pendingUploadSelections.filter(p => p.found);
+        if (toApply.length === 0) {
+            alert('시뮬레이터에 적용할 수 있는 과목이 없습니다.');
+            return;
+        }
+
+        // 기존 선택 초기화
+        selectedCourses.clear();
+        document.querySelectorAll('.course-item.selected').forEach(el => {
+            el.classList.remove('selected');
+            const cb = el.querySelector('.check-box');
+            if (cb) cb.innerText = 'check_box_outline_blank';
+        });
+
+        // 엑셀에서 읽은 과목 체크
+        let applied = 0;
+        toApply.forEach(({ rowId, sem, xlsName }) => {
+            selectedCourses.add(rowId);
+            // DOM 업데이트
+            const elId = `item_${rowId.replace(/\s/g,'_')}`;
+            const el = document.getElementById(elId);
+            if (el) {
+                el.classList.add('selected');
+                const cb = el.querySelector('.check-box');
+                if (cb) cb.innerText = 'check_box';
+            }
+            applied++;
+        });
+
+        updateSummary();
+        updateGroupCompletion();
+        drawPaths();
+        if (typeof renderAdmissionSelectedChips === 'function') renderAdmissionSelectedChips();
+        if (typeof renderAdmissionTable === 'function') renderAdmissionTable();
+
+        // 시뮬레이터 탭으로 이동
+        switchTab('simulator');
+        alert(`✅ ${applied}개 선택과목이 시뮬레이터에 적용되었습니다.`);
+    }
+
+    function showUploadError(msg) {
+        document.getElementById('uploadErrorMsg').textContent = msg;
+        document.getElementById('uploadErrorPanel').classList.remove('hidden');
+        document.getElementById('uploadResultPanel').classList.add('hidden');
     }
 
     // 앱 초기 실행
