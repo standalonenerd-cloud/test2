@@ -271,11 +271,11 @@
         .course-item.selected .tag { opacity: 1 !important; }
 
         .course-item.group-complete:not(.selected) {
-            border-color: #22c55e;
-            box-shadow: inset 4px 0 0 #22c55e;
+            border-left: 4px solid #22c55e;
         }
+        /* selected는 자주색 스타일만 유지, group-complete 추가 표시 없음 */
         .course-item.selected.group-complete {
-            box-shadow: 0 2px 8px rgba(138, 28, 62, 0.35), inset 4px 0 0 #86efac;
+            box-shadow: 0 2px 8px rgba(138, 28, 62, 0.35);
         }
 
         .item-row { display: flex; align-items: flex-start; gap: 6px; width: 100%; }
@@ -1544,6 +1544,33 @@
                 }
                 // 페이드 마스크(::after) 제거용 클래스 추가
                 clone.classList.add('scrolled-to-bottom');
+
+                // 선택 과목 인라인 스타일 강제 적용 (오프스크린 CSS 미적용 대비)
+                clone.querySelectorAll('.course-item.selected').forEach(el => {
+                    el.style.backgroundColor = '#8a1c3e';
+                    el.style.borderColor     = '#8a1c3e';
+                    el.style.color           = 'white';
+                    el.style.boxShadow       = '0 2px 8px rgba(138,28,62,0.35)';
+                    const cb = el.querySelector('.check-box');
+                    if (cb) cb.style.color = '#ffdadb';
+                    const cn = el.querySelector('.course-name');
+                    if (cn) cn.style.color = 'white';
+                    const cl = el.querySelector('.credit-label');
+                    if (cl) cl.style.color = '#ffdadb';
+                });
+                // 필수 과목 인라인 스타일 강제 적용
+                clone.querySelectorAll('.course-item.mandatory').forEach(el => {
+                    el.style.backgroundColor = '#e2e8f0';
+                    el.style.borderColor     = '#cbd5e1';
+                    el.style.color           = '#64748b';
+                    el.style.boxShadow       = '';
+                });
+                // 미선택 과목 인라인 스타일 초기화
+                clone.querySelectorAll('.course-item.choice:not(.selected)').forEach(el => {
+                    el.style.backgroundColor = 'white';
+                    el.style.boxShadow       = '';
+                });
+
                 offscreen.appendChild(clone);
                 filledPanelCount++;
             });
@@ -1551,15 +1578,27 @@
             // 오프스크린 열 수를 실제 패널 수에 맞게 조정
             offscreen.style.gridTemplateColumns = `repeat(${filledPanelCount}, 1fr)`;
 
-            // 호버로 남은 인라인 backgroundColor 초기화 (color-mix 잔재 방어)
-            offscreen.querySelectorAll('[style*="background-color"]').forEach(el => {
+            // 캡처 전 호버 상태 완전 초기화 (원본 DOM)
+            document.querySelectorAll('.course-item').forEach(el => {
+                el.classList.remove('group-hover', 'cat-hover');
                 if (!el.classList.contains('selected') && !el.classList.contains('mandatory')) {
                     el.style.backgroundColor = '';
                 }
+                el.style.boxShadow = '';
+            });
+            document.getElementById('courseTooltip').style.display = 'none';
+
+            // 오프스크린 복제본에서도 인라인 스타일 초기화
+            offscreen.querySelectorAll('.course-item').forEach(el => {
+                el.classList.remove('group-hover', 'cat-hover');
+                if (!el.classList.contains('selected') && !el.classList.contains('mandatory')) {
+                    el.style.backgroundColor = '';
+                }
+                el.style.boxShadow = '';
             });
 
             // 렌더링 안정화 대기
-            await new Promise(r => setTimeout(r, 200));
+            await new Promise(r => setTimeout(r, 300));
 
             // 실제 렌더된 높이를 정확히 측정 (공백 제거)
             const actualH = offscreen.getBoundingClientRect().height || offscreen.scrollHeight;
