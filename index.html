@@ -231,17 +231,24 @@
             padding: 4px 6px;
             margin-bottom: 6px;
             border-radius: 6px;
-            border: 2px solid #e2e8f0;
+            border: 2px solid #cbd5e1;
             cursor: pointer;
             display: flex;
             flex-direction: column;
             gap: 2px;
             font-size: 0.7rem;
-            background-color: white;
+            /* 미선택 과목: 필수과목과 동일한 회색 음영 */
+            background-color: #e2e8f0;
+            color: #64748b;
             position: relative;
             z-index: 10;
             transition: all 0.2s ease;
         }
+
+        /* 미선택 과목 체크박스·과목명도 흐리게 */
+        .course-item:not(.selected):not(.mandatory) .check-box { color: #94a3b8; }
+        .course-item:not(.selected):not(.mandatory) .course-name { color: #64748b; }
+        .course-item:not(.selected):not(.mandatory) .tag { opacity: 0.55; }
 
         .course-item.mandatory { 
             cursor: default; 
@@ -254,25 +261,41 @@
 
         .course-item.group-hover {
             border-color: #64748b !important;
-            box-shadow: 0 0 0 2px rgba(100, 116, 139, 0.1);
+            box-shadow: 0 0 0 2px rgba(100, 116, 139, 0.15);
             transform: translateY(-1px);
+            background-color: #d8dfe8 !important;
         }
 
+        /* 선택 과목: 진한 자주색 배경 + 굵은 테두리 + 흰 글씨 */
         .course-item.selected {
-            background-color: #fff0f3 !important;
+            background-color: var(--md-sys-color-primary) !important;
             border-color: var(--md-sys-color-primary) !important;
+            color: white !important;
+            box-shadow: 0 2px 8px rgba(138, 28, 62, 0.35);
+        }
+        .course-item.selected .check-box { color: #ffdadb !important; }
+        .course-item.selected .course-name { color: white !important; }
+        .course-item.selected .tag { opacity: 1 !important; }
+        /* 선택 과목의 학점 표시도 흰색으로 */
+        .course-item.selected span[style*="color:var(--md-sys-color-primary)"] {
+            color: #ffdadb !important;
         }
 
-        .course-item.group-complete {
+        .course-item.group-complete:not(.selected) {
             border-color: #22c55e;
             box-shadow: inset 4px 0 0 #22c55e;
         }
+        .course-item.selected.group-complete {
+            box-shadow: 0 2px 8px rgba(138, 28, 62, 0.35), inset 4px 0 0 #86efac;
+        }
 
         .item-row { display: flex; align-items: flex-start; gap: 6px; width: 100%; }
-        .check-box { font-size: 16px; color: #cbd5e1; flex-shrink: 0; }
-        .mandatory .check-box { color: #64748b; }
-        .selected .check-box { color: var(--md-sys-color-primary); }
+        .check-box { font-size: 16px; color: #94a3b8; flex-shrink: 0; }
+        .mandatory .check-box { color: #94a3b8; }
+        .selected .check-box { color: #ffdadb; }
         .course-name { font-weight: 700; flex: 1; line-height: 1.2; word-break: keep-all; }
+        .credit-label { color: var(--md-sys-color-primary); }
+        .course-item.selected .credit-label { color: #ffdadb !important; }
 
         .badges-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
         .tag { padding: 1px 4px; border-radius: 4px; font-size: 0.6rem; font-weight: 700; color: white; }
@@ -898,7 +921,7 @@
         item.id = `item_${rowId.replace(/\s/g, '_')}`;
         
         const extraTag = extraInfo ? `<span class="tag extra-info"><span class="material-icons-round">add_circle</span>${extraInfo}</span>` : '';
-        item.innerHTML = `<div class="item-row"><span class="material-icons-round check-box">${isMandatory ? 'check_box' : 'check_box_outline_blank'}</span><span class="course-name">${courseName} <span style="color:var(--md-sys-color-primary);font-size:0.65rem;">(${credits})</span></span></div>
+        item.innerHTML = `<div class="item-row"><span class="material-icons-round check-box">${isMandatory ? 'check_box' : 'check_box_outline_blank'}</span><span class="course-name">${courseName} <span class="credit-label" style="font-size:0.65rem;">(${credits})</span></span></div>
                           <div class="badges-row"><span class="tag" style="background-color:${getCourseCategoryColor(row)}">${cat}</span><span class="tag" style="background-color:#64748b; font-size:0.55rem;">${type}</span>${extraTag}</div>`;
 
         item.onmouseover = (e) => {
@@ -1469,9 +1492,29 @@
             document.body.appendChild(offscreen);
 
             // 각 학기 패널을 복제해서 오프스크린에 배치
+            // ★ 선택 과목만 표시: 미선택 choice 항목 및 빈 선택군 구분선 제거
             const panels = Array.from(document.querySelectorAll('.semester-panel'));
+            let filledPanelCount = 0;
             panels.forEach(panel => {
                 const clone = panel.cloneNode(true);
+
+                // 미선택 choice 과목 제거 (mandatory는 유지)
+                clone.querySelectorAll('.course-item.choice:not(.selected)').forEach(el => el.remove());
+
+                // 선택된 과목이 하나도 없는 선택군 구분선 제거
+                clone.querySelectorAll('.group-separator').forEach(sep => {
+                    const groupKey = sep.dataset.group;
+                    if (groupKey) {
+                        const hasSelected = clone.querySelector(`.course-item[data-group="${CSS.escape(groupKey)}"]`);
+                        if (!hasSelected) sep.remove();
+                        else {
+                            // 구분선 상태 텍스트 "선택 완료"로 고정
+                            const st = sep.querySelector('.group-status');
+                            if (st) st.textContent = '✅ 선택 완료';
+                        }
+                    }
+                });
+
                 // overflow·height 제약 모두 제거
                 clone.style.cssText = `
                     background: white;
@@ -1494,7 +1537,11 @@
                 // 페이드 마스크(::after) 제거용 클래스 추가
                 clone.classList.add('scrolled-to-bottom');
                 offscreen.appendChild(clone);
+                filledPanelCount++;
             });
+
+            // 오프스크린 열 수를 실제 패널 수에 맞게 조정
+            offscreen.style.gridTemplateColumns = `repeat(${filledPanelCount}, 1fr)`;
 
             // 렌더링 안정화 대기
             await new Promise(r => setTimeout(r, 200));
