@@ -1130,7 +1130,7 @@
         // ── 통계 패널 (7번째 열) ──
         const statsCol = document.createElement('div');
         statsCol.className = 'semester-panel stats-panel';
-        statsCol.innerHTML = `<div class="semester-header" style="background:#334155;"><span>선택과목 통계 (2·3학년)</span></div>
+        statsCol.innerHTML = `<div class="semester-header" style="background:#334155;"><span>학년별 선택과목 통계</span></div>
                               <div class="semester-content" id="statsPanelContent" style="padding-bottom:12px;"></div>`;
         container.appendChild(statsCol);
 
@@ -1142,20 +1142,24 @@
 
     // ── 2·3학년 선택과목 통계 계산 ──
     function computeSelectionStats() {
-        const stats = { 일반:0, 진로:0, 융합:0, 기타:0, 산출:0, 비산출:0, total:0 };
-        const upperSems = ['2-1','2-2','3-1','3-2'];
+        // 학년별로 분리 집계: g2 = 2학년, g3 = 3학년
+        const mk = () => ({ 일반:0, 진로:0, 융합:0, 기타:0, 산출:0, 비산출:0, total:0 });
+        const stats = { g2: mk(), g3: mk() };
+        const semGrade = { '2-1':'g2','2-2':'g2','3-1':'g3','3-2':'g3' };
         selectedCourses.forEach(id => {
             const [s, n] = id.split('_');
-            if (!upperSems.includes(s)) return;
+            const gk = semGrade[s];
+            if (!gk) return;
             const r = rawData.find(d => d['과목명'] === n && d[`${s}_학점`]);
             if (!r || r['학교지정'] === 'True') return;
-            stats.total++;
+            const st = stats[gk];
+            st.total++;
             const tb = (r['과목유형'] || '일반').replace(/\(.*?\)/g,'').trim();
-            if (stats[tb] !== undefined) stats[tb]++; else stats.기타++;
+            if (st[tb] !== undefined) st[tb]++; else st.기타++;
             // 5등급 산출 여부: 성적산출방식에 '석차등급 병기' 포함 여부
             const meta = getCourseMeta(r, '');
-            if ((meta.성적산출방식 || '').includes('석차등급 병기')) stats.산출++;
-            else stats.비산출++;
+            if ((meta.성적산출방식 || '').includes('석차등급 병기')) st.산출++;
+            else st.비산출++;
         });
         return stats;
     }
@@ -1165,20 +1169,21 @@
         if (!el) return;
         const s = computeSelectionStats();
         const bar = (label, val, color, textColor) => `
-            <div style="display:flex; align-items:center; justify-content:space-between; padding:7px 9px; margin-bottom:6px; border-radius:6px; background:${color}; color:${textColor}; font-weight:700; font-size:0.74rem;">
-                <span>${label}</span><span style="font-size:0.95rem;">${val}<span style="font-size:0.65rem; opacity:0.8;">과목</span></span>
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:5px 9px; margin-bottom:4px; border-radius:6px; background:${color}; color:${textColor}; font-weight:700; font-size:0.72rem;">
+                <span>${label}</span><span style="font-size:0.9rem;">${val}<span style="font-size:0.62rem; opacity:0.8;">과목</span></span>
             </div>`;
+        const gradeBlock = (title, st) => `
+            <div class="group-separator" style="margin-top:4px; background:#3b0014; color:white;">${title}</div>
+            ${bar('일반 선택', st.일반, '#8a1c3e', '#ffdadb')}
+            ${bar('진로 선택', st.진로, '#1D4ED8', '#FEF9C3')}
+            ${bar('융합 선택', st.융합, '#047857', '#FCE7F3')}
+            ${bar('5등급 산출', st.산출, '#475569', '#f1f5f9')}
+            ${bar('비산출', st.비산출, '#94a3b8', '#1e293b')}
+            ${bar('소계', st.total, '#0f172a', '#e2e8f0')}`;
         el.innerHTML = `
-            <div class="group-separator" style="margin-top:4px;">과목유형별</div>
-            ${bar('일반 선택', s.일반, '#8a1c3e', '#ffdadb')}
-            ${bar('진로 선택', s.진로, '#1D4ED8', '#FEF9C3')}
-            ${bar('융합 선택', s.융합, '#047857', '#FCE7F3')}
-            <div class="group-separator">등급 산출 여부</div>
-            ${bar('5등급 산출', s.산출, '#475569', '#f1f5f9')}
-            ${bar('비산출(성취도 등)', s.비산출, '#94a3b8', '#1e293b')}
-            <div class="group-separator">합계</div>
-            ${bar('선택과목 합계', s.total, '#0f172a', '#e2e8f0')}
-            <p style="font-size:0.62rem; color:#94a3b8; margin:8px 2px 0; line-height:1.4;">* 2·3학년 학생 선택과목 기준<br>* 5등급 산출 = 석차등급 병기 과목</p>`;
+            ${gradeBlock('2학년 선택과목', s.g2)}
+            ${gradeBlock('3학년 선택과목', s.g3)}
+            <p style="font-size:0.6rem; color:#94a3b8; margin:6px 2px 0; line-height:1.4;">* 학생 선택과목 기준<br>* 5등급 산출 = 석차등급 병기 과목</p>`;
     }
 
     function updateScrollMasks() {
@@ -1678,14 +1683,14 @@
         tsv.push(['', '', '', '', '', '창의적 체험활동', String(creativeActivityCredits), '-'].join('\t'));
         tsv.push(['합계', '', '', '', '', `선택 ${choiceCount}과목`, String(totalWithCA), `졸업기준 ${graduationCredits}`].join('\t'));
 
-        // 선택과목 통계 (2·3학년)
+        // 선택과목 통계 (학년별)
         const st = computeSelectionStats();
         tsv.push('');
-        tsv.push('[선택과목 통계 (2·3학년)]');
-        tsv.push(['과목유형', '일반', '진로', '융합', '합계'].join('\t'));
-        tsv.push(['과목 수', String(st.일반), String(st.진로), String(st.융합), String(st.total)].join('\t'));
-        tsv.push(['등급산출', '5등급 산출', '비산출', '', ''].join('\t'));
-        tsv.push(['과목 수', String(st.산출), String(st.비산출), '', ''].join('\t'));
+        tsv.push('[선택과목 통계]');
+        tsv.push(['학년', '일반', '진로', '융합', '5등급 산출', '비산출', '소계'].join('\t'));
+        tsv.push(['2학년', String(st.g2.일반), String(st.g2.진로), String(st.g2.융합), String(st.g2.산출), String(st.g2.비산출), String(st.g2.total)].join('\t'));
+        tsv.push(['3학년', String(st.g3.일반), String(st.g3.진로), String(st.g3.융합), String(st.g3.산출), String(st.g3.비산출), String(st.g3.total)].join('\t'));
+        tsv.push(['합계', String(st.g2.일반+st.g3.일반), String(st.g2.진로+st.g3.진로), String(st.g2.융합+st.g3.융합), String(st.g2.산출+st.g3.산출), String(st.g2.비산출+st.g3.비산출), String(st.g2.total+st.g3.total)].join('\t'));
 
         const text = tsv.join('\n');
         const button = document.getElementById('copySelectionBtn');
