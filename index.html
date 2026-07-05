@@ -151,7 +151,7 @@
         .simulator-container {
             flex: 1;
             display: grid;
-            grid-template-columns: repeat(6, 1fr);
+            grid-template-columns: repeat(7, 1fr);
             gap: 40px;
             padding: 20px;
             box-sizing: border-box;
@@ -270,6 +270,25 @@
         .course-item.selected .check-box { color: #ffdadb !important; }
         .course-item.selected .course-name { color: white !important; }
         .course-item.selected .tag { opacity: 1 !important; }
+
+        /* 과목유형별 선택 색상: 일반=자주(기본), 진로=진청, 융합=진녹 / 글씨는 배경 보색 계열 밝은 톤 */
+        .course-item.selected.type-진로 {
+            background-color: #1D4ED8 !important;   /* 진청 */
+            border-color: #1D4ED8 !important;
+            box-shadow: 0 2px 8px rgba(29, 78, 216, 0.35);
+        }
+        .course-item.selected.type-진로 .check-box { color: #FDE68A !important; }   /* 파랑의 보색(노랑) 밝은 톤 */
+        .course-item.selected.type-진로 .course-name { color: #FEF9C3 !important; }
+        .course-item.selected.type-진로 .credit-label { color: #FDE68A !important; }
+
+        .course-item.selected.type-융합 {
+            background-color: #047857 !important;   /* 진녹 */
+            border-color: #047857 !important;
+            box-shadow: 0 2px 8px rgba(4, 120, 87, 0.35);
+        }
+        .course-item.selected.type-융합 .check-box { color: #FBCFE8 !important; }   /* 초록의 보색(마젠타) 밝은 톤 */
+        .course-item.selected.type-융합 .course-name { color: #FCE7F3 !important; }
+        .course-item.selected.type-융합 .credit-label { color: #FBCFE8 !important; }
 
         .course-item.group-complete:not(.selected) {
             border-left: 4px solid #22c55e;
@@ -411,6 +430,53 @@
         .upload-preview-table tr:hover td { background:#f8fafc; }
         .upload-badge-sem { display:inline-block; padding:1px 6px; border-radius:999px; font-size:0.65rem; font-weight:700; color:white; background:var(--md-sys-color-primary); }
         .upload-badge-notfound { background:#94a3b8; }
+
+        /* ── 모바일 보기 모드 ── */
+        #mobileSemBar {
+            display: none;
+            gap: 6px;
+            padding: 8px 12px;
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            overflow-x: auto;
+            flex-shrink: 0;
+        }
+        #mobileSemBar button {
+            flex-shrink: 0;
+            padding: 6px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 16px;
+            background: white;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #475569;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        #mobileSemBar button.active {
+            background: var(--md-sys-color-primary);
+            border-color: var(--md-sys-color-primary);
+            color: white;
+        }
+        body.mobile-mode #mobileSemBar { display: flex; }
+        body.mobile-mode #simWrapper { overflow: auto; }
+        body.mobile-mode #svgOverlay { display: none; }
+        body.mobile-mode .simulator-container {
+            display: block;
+            overflow: visible;
+            padding: 12px;
+        }
+        body.mobile-mode .semester-panel { display: none; height: auto; }
+        body.mobile-mode .semester-panel.mobile-active { display: flex; }
+        body.mobile-mode .semester-content {
+            overflow: visible;
+            height: auto;
+            padding-bottom: 20px;
+        }
+        body.mobile-mode .semester-panel::after { display: none; }
+        body.mobile-mode .course-item { font-size: 0.82rem; }
+        body.mobile-mode .course-item .course-name { font-size: 0.85rem; }
+        body.mobile-mode .check-box { font-size: 20px; }
     </style>
 </head>
 <body>
@@ -442,6 +508,10 @@
             <span class="material-icons-round">image</span>
             이미지 저장
         </button>
+        <button id="mobileModeBtn" class="copy-selection-btn" onclick="toggleMobileMode()" title="모바일 화면에 맞는 한 학기씩 보기로 전환">
+            <span class="material-icons-round">smartphone</span>
+            모바일 보기
+        </button>
     </div>
 </header>
 
@@ -464,6 +534,7 @@
         <span class="material-icons-round" style="font-size:16px; color:var(--md-sys-color-primary);">badge</span>
         <span id="studentInfoText" style="font-size:0.82rem; font-weight:700; color:var(--md-sys-color-primary);"></span>
     </div>
+    <div id="mobileSemBar"></div>
     <svg id="svgOverlay"></svg>
     <div id="tab-simulator" class="simulator-container"></div>
 </div>
@@ -645,6 +716,60 @@
             } else {
                 banner.style.display = 'none';
             }
+        }
+    }
+
+    // =====================================================================
+    // 모바일 보기 모드 (한 학기씩 보기)
+    // =====================================================================
+    let mobileMode = false;
+    let currentMobileSem = '1-1';
+    const MOBILE_SEM_LABELS = {
+        '1-1':'1학년 1학기','1-2':'1학년 2학기','2-1':'2학년 1학기',
+        '2-2':'2학년 2학기','3-1':'3학년 1학기','3-2':'3학년 2학기','stats':'통계'
+    };
+
+    function toggleMobileMode() {
+        mobileMode = !mobileMode;
+        document.body.classList.toggle('mobile-mode', mobileMode);
+        const btn = document.getElementById('mobileModeBtn');
+        if (btn) {
+            btn.innerHTML = mobileMode
+                ? '<span class="material-icons-round">desktop_windows</span>PC 보기'
+                : '<span class="material-icons-round">smartphone</span>모바일 보기';
+        }
+        if (mobileMode) {
+            renderMobileSemBar();
+            applyMobileView();
+        } else {
+            setTimeout(() => { drawPaths(); updateScrollMasks(); }, 100);
+        }
+    }
+
+    function renderMobileSemBar() {
+        const bar = document.getElementById('mobileSemBar');
+        if (!bar) return;
+        const keys = [...semesters, 'stats'];
+        bar.innerHTML = keys.map(k =>
+            `<button class="${k===currentMobileSem?'active':''}" onclick="selectMobileSem('${k}')">${MOBILE_SEM_LABELS[k]}</button>`
+        ).join('');
+    }
+
+    function selectMobileSem(sem) {
+        currentMobileSem = sem;
+        renderMobileSemBar();
+        applyMobileView();
+    }
+
+    function applyMobileView() {
+        if (!mobileMode) return;
+        document.querySelectorAll('.semester-panel').forEach(p => p.classList.remove('mobile-active'));
+        if (currentMobileSem === 'stats') {
+            const sp = document.querySelector('.stats-panel');
+            if (sp) sp.classList.add('mobile-active');
+        } else {
+            const content = document.getElementById(`content-${currentMobileSem}`);
+            if (content) content.closest('.semester-panel').classList.add('mobile-active');
         }
     }
     const semesters = ["1-1", "1-2", "2-1", "2-2", "3-1", "3-2"];
@@ -1002,7 +1127,58 @@
                 groupItems.forEach(r => content.appendChild(createSimItem(r, false, sem, isGroupCode ? groupKey : null)));
             });
         });
+        // ── 통계 패널 (7번째 열) ──
+        const statsCol = document.createElement('div');
+        statsCol.className = 'semester-panel stats-panel';
+        statsCol.innerHTML = `<div class="semester-header" style="background:#334155;"><span>선택과목 통계 (2·3학년)</span></div>
+                              <div class="semester-content" id="statsPanelContent" style="padding-bottom:12px;"></div>`;
+        container.appendChild(statsCol);
+
         updateSummary(); updateGroupCompletion(); setTimeout(() => { drawPaths(); updateScrollMasks(); }, 200);
+
+        // 모바일 보기 상태 유지
+        if (mobileMode) { renderMobileSemBar(); applyMobileView(); }
+    }
+
+    // ── 2·3학년 선택과목 통계 계산 ──
+    function computeSelectionStats() {
+        const stats = { 일반:0, 진로:0, 융합:0, 기타:0, 산출:0, 비산출:0, total:0 };
+        const upperSems = ['2-1','2-2','3-1','3-2'];
+        selectedCourses.forEach(id => {
+            const [s, n] = id.split('_');
+            if (!upperSems.includes(s)) return;
+            const r = rawData.find(d => d['과목명'] === n && d[`${s}_학점`]);
+            if (!r || r['학교지정'] === 'True') return;
+            stats.total++;
+            const tb = (r['과목유형'] || '일반').replace(/\(.*?\)/g,'').trim();
+            if (stats[tb] !== undefined) stats[tb]++; else stats.기타++;
+            // 5등급 산출 여부: 성적산출방식에 '석차등급 병기' 포함 여부
+            const meta = getCourseMeta(r, '');
+            if ((meta.성적산출방식 || '').includes('석차등급 병기')) stats.산출++;
+            else stats.비산출++;
+        });
+        return stats;
+    }
+
+    function renderSelectionStats() {
+        const el = document.getElementById('statsPanelContent');
+        if (!el) return;
+        const s = computeSelectionStats();
+        const bar = (label, val, color, textColor) => `
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:7px 9px; margin-bottom:6px; border-radius:6px; background:${color}; color:${textColor}; font-weight:700; font-size:0.74rem;">
+                <span>${label}</span><span style="font-size:0.95rem;">${val}<span style="font-size:0.65rem; opacity:0.8;">과목</span></span>
+            </div>`;
+        el.innerHTML = `
+            <div class="group-separator" style="margin-top:4px;">과목유형별</div>
+            ${bar('일반 선택', s.일반, '#8a1c3e', '#ffdadb')}
+            ${bar('진로 선택', s.진로, '#1D4ED8', '#FEF9C3')}
+            ${bar('융합 선택', s.융합, '#047857', '#FCE7F3')}
+            <div class="group-separator">등급 산출 여부</div>
+            ${bar('5등급 산출', s.산출, '#475569', '#f1f5f9')}
+            ${bar('비산출(성취도 등)', s.비산출, '#94a3b8', '#1e293b')}
+            <div class="group-separator">합계</div>
+            ${bar('선택과목 합계', s.total, '#0f172a', '#e2e8f0')}
+            <p style="font-size:0.62rem; color:#94a3b8; margin:8px 2px 0; line-height:1.4;">* 2·3학년 학생 선택과목 기준<br>* 5등급 산출 = 석차등급 병기 과목</p>`;
     }
 
     function updateScrollMasks() {
@@ -1023,8 +1199,11 @@
         const type = row['과목유형'] || '일반';
         const extraInfo = row['비고_전문_고시외_표6'] || '';
         
-        item.className = `course-item ${isMandatory ? 'mandatory' : 'choice'}`; 
+        // 과목유형 기본형 (진로(고시외) 등 접미 제거) → 선택 색상 구분용 클래스
+        const typeBase = type.replace(/\(.*?\)/g,'').trim();
+        item.className = `course-item ${isMandatory ? 'mandatory' : 'choice'} type-${typeBase}`; 
         item.dataset.cat = cat; 
+        item.dataset.type = typeBase;
         item.dataset.pathCats = getPathCategories(row).join('|'); 
         item.dataset.sem = sem;
         
@@ -1163,6 +1342,9 @@
         document.getElementById('totalSelected').innerText = selectedCourses.size;
         document.getElementById('totalMandatoryCredits').innerText = `${mand + creativeActivityCredits}`;
         document.getElementById('totalCredits').innerText = `${total} / ${graduationCredits}`;
+
+        // 통계 패널 갱신
+        renderSelectionStats();
 
         // 필수이수 탭이 열려있으면 그래프도 갱신
         if (!document.getElementById('tab-fulfillment').classList.contains('hidden')) {
@@ -1496,6 +1678,15 @@
         tsv.push(['', '', '', '', '', '창의적 체험활동', String(creativeActivityCredits), '-'].join('\t'));
         tsv.push(['합계', '', '', '', '', `선택 ${choiceCount}과목`, String(totalWithCA), `졸업기준 ${graduationCredits}`].join('\t'));
 
+        // 선택과목 통계 (2·3학년)
+        const st = computeSelectionStats();
+        tsv.push('');
+        tsv.push('[선택과목 통계 (2·3학년)]');
+        tsv.push(['과목유형', '일반', '진로', '융합', '합계'].join('\t'));
+        tsv.push(['과목 수', String(st.일반), String(st.진로), String(st.융합), String(st.total)].join('\t'));
+        tsv.push(['등급산출', '5등급 산출', '비산출', '', ''].join('\t'));
+        tsv.push(['과목 수', String(st.산출), String(st.비산출), '', ''].join('\t'));
+
         const text = tsv.join('\n');
         const button = document.getElementById('copySelectionBtn');
         const original = button.innerHTML;
@@ -1506,6 +1697,8 @@
     }
 
     function drawPaths(e) {
+        // 모바일 보기에서는 연결선 미표시
+        if (mobileMode) { const sv = document.getElementById('svgOverlay'); if (sv) sv.innerHTML = ''; return; }
         if (e && e.target) updateScrollMasks();
         const svg = document.getElementById('svgOverlay'); svg.innerHTML = ''; const svgRect = svg.getBoundingClientRect();
         const catGroups = {};
@@ -1882,7 +2075,7 @@
         let captureWrapper = null;
         try {
             const source = document.getElementById('tab-simulator');
-            const colCount = semesters.length; // 6
+            const colCount = semesters.length + 1; // 6개 학기 + 통계 패널
 
             const gridWidth = Math.max(document.getElementById('simWrapper').offsetWidth, colCount * 200 + (colCount-1)*40 + 40);
 
@@ -1977,18 +2170,23 @@
                 // 페이드 마스크(::after) 제거용 클래스 추가
                 clone.classList.add('scrolled-to-bottom');
 
-                // 선택 과목 인라인 스타일 강제 적용 (오프스크린 CSS 미적용 대비)
+                // 선택 과목 인라인 스타일 강제 적용 (유형별 색상, 오프스크린 CSS 미적용 대비)
+                const TYPE_STYLES = {
+                    '진로': { bg:'#1D4ED8', shadow:'0 2px 8px rgba(29,78,216,0.35)',  check:'#FDE68A', name:'#FEF9C3' },
+                    '융합': { bg:'#047857', shadow:'0 2px 8px rgba(4,120,87,0.35)',   check:'#FBCFE8', name:'#FCE7F3' },
+                };
                 clone.querySelectorAll('.course-item.selected').forEach(el => {
-                    el.style.backgroundColor = '#8a1c3e';
-                    el.style.borderColor     = '#8a1c3e';
-                    el.style.color           = 'white';
-                    el.style.boxShadow       = '0 2px 8px rgba(138,28,62,0.35)';
+                    const ts = TYPE_STYLES[el.dataset.type] || { bg:'#8a1c3e', shadow:'0 2px 8px rgba(138,28,62,0.35)', check:'#ffdadb', name:'white' };
+                    el.style.backgroundColor = ts.bg;
+                    el.style.borderColor     = ts.bg;
+                    el.style.color           = ts.name;
+                    el.style.boxShadow       = ts.shadow;
                     const cb = el.querySelector('.check-box');
-                    if (cb) cb.style.color = '#ffdadb';
+                    if (cb) cb.style.color = ts.check;
                     const cn = el.querySelector('.course-name');
-                    if (cn) cn.style.color = 'white';
+                    if (cn) cn.style.color = ts.name;
                     const cl = el.querySelector('.credit-label');
-                    if (cl) cl.style.color = '#ffdadb';
+                    if (cl) cl.style.color = ts.check;
                 });
                 // 필수 과목 인라인 스타일 강제 적용
                 clone.querySelectorAll('.course-item.mandatory').forEach(el => {
@@ -2077,6 +2275,8 @@
     window.addEventListener('DOMContentLoaded', () => {
         loadTrackData('general');
         window.addEventListener('resize', () => drawPaths());
+        // 좁은 화면(모바일)으로 접속 시 자동으로 모바일 보기 켜기
+        if (window.innerWidth < 768) toggleMobileMode();
     });
 </script>
 </body>
