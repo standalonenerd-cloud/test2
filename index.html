@@ -1276,7 +1276,7 @@
         // ── 통계 패널 (7번째 열) ──
         const statsCol = document.createElement('div');
         statsCol.className = 'semester-panel stats-panel';
-        statsCol.innerHTML = `<div class="semester-header" style="background:#334155;"><span>학년별 선택과목 통계</span></div>
+        statsCol.innerHTML = `<div class="semester-header" style="background:#334155;"><span>학기별 선택과목 통계</span></div>
                               <div class="semester-content" id="statsPanelContent" style="padding-bottom:12px;"></div>`;
         container.appendChild(statsCol);
 
@@ -1286,19 +1286,17 @@
         if (mobileMode) { renderMobileSemBar(); applyMobileView(); }
     }
 
-    // ── 2·3학년 선택과목 통계 계산 ──
+    // ── 학기별 선택과목 통계 계산 ──
     function computeSelectionStats() {
-        // 학년별로 분리 집계: g2 = 2학년, g3 = 3학년
+        // 학기별 분리 집계: 2-1, 2-2, 3-1, 3-2
         const mk = () => ({ 일반:0, 진로:0, 융합:0, 기타:0, 산출:0, 비산출:0, total:0 });
-        const stats = { g2: mk(), g3: mk() };
-        const semGrade = { '2-1':'g2','2-2':'g2','3-1':'g3','3-2':'g3' };
+        const stats = { '2-1': mk(), '2-2': mk(), '3-1': mk(), '3-2': mk() };
         selectedCourses.forEach(id => {
             const [s, n] = id.split('_');
-            const gk = semGrade[s];
-            if (!gk) return;
+            if (!stats[s]) return;
             const r = rawData.find(d => d['과목명'] === n && d[`${s}_학점`]);
             if (!r || r['학교지정'] === 'True') return;
-            const st = stats[gk];
+            const st = stats[s];
             st.total++;
             const tb = (r['과목유형'] || '일반').replace(/\(.*?\)/g,'').trim();
             if (st[tb] !== undefined) st[tb]++; else st.기타++;
@@ -1314,22 +1312,23 @@
         const el = document.getElementById('statsPanelContent');
         if (!el) return;
         const s = computeSelectionStats();
-        const bar = (label, val, color, textColor) => `
-            <div style="display:flex; align-items:center; justify-content:space-between; padding:5px 9px; margin-bottom:4px; border-radius:6px; background:${color}; color:${textColor}; font-weight:700; font-size:0.72rem;">
-                <span>${label}</span><span style="font-size:0.9rem;">${val}<span style="font-size:0.62rem; opacity:0.8;">과목</span></span>
+        // 컴팩트 행: 라벨 + 값 (4개 학기가 한 화면에 들어가도록)
+        const row = (label, val, color, textColor) => `
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:2px 8px; margin-bottom:2px; border-radius:5px; background:${color}; color:${textColor}; font-weight:700; font-size:0.68rem;">
+                <span>${label}</span><span style="font-size:0.8rem;">${val}</span>
             </div>`;
-        const gradeBlock = (title, st) => `
-            <div class="group-separator" style="margin-top:4px; background:#3b0014; color:white;">${title}</div>
-            ${bar('일반 선택', st.일반, '#8a1c3e', '#ffdadb')}
-            ${bar('진로 선택', st.진로, '#1D4ED8', '#FEF9C3')}
-            ${bar('융합 선택', st.융합, '#047857', '#FCE7F3')}
-            ${bar('5등급 산출', st.산출, '#475569', '#f1f5f9')}
-            ${bar('비산출', st.비산출, '#94a3b8', '#1e293b')}
-            ${bar('소계', st.total, '#0f172a', '#e2e8f0')}`;
+        const semBlock = (semKey, title, st) => `
+            <div class="group-separator" style="margin-top:3px; margin-bottom:3px; background:#3b0014; color:white; font-size:0.7rem; padding:3px 8px;">${title} <span style="opacity:0.75; font-weight:600;">(소계 ${st.total})</span></div>
+            ${row('일반', st.일반, '#8a1c3e', '#ffdadb')}
+            ${row('진로', st.진로, '#1D4ED8', '#FEF9C3')}
+            ${row('융합', st.융합, '#047857', '#FCE7F3')}
+            ${row('5등급 산출 / 비산출', `${st.산출} / ${st.비산출}`, '#475569', '#f1f5f9')}`;
         el.innerHTML = `
-            ${gradeBlock('2학년 선택과목', s.g2)}
-            ${gradeBlock('3학년 선택과목', s.g3)}
-            <p style="font-size:0.6rem; color:#94a3b8; margin:6px 2px 0; line-height:1.4;">* 학생 선택과목 기준<br>* 5등급 산출 = 석차등급 병기 과목</p>`;
+            ${semBlock('2-1','2학년 1학기', s['2-1'])}
+            ${semBlock('2-2','2학년 2학기', s['2-2'])}
+            ${semBlock('3-1','3학년 1학기', s['3-1'])}
+            ${semBlock('3-2','3학년 2학기', s['3-2'])}
+            <p style="font-size:0.58rem; color:#94a3b8; margin:5px 2px 0; line-height:1.35;">* 학생 선택과목 기준<br>* 5등급 산출 = 석차등급 병기 과목</p>`;
     }
 
     function updateScrollMasks() {
@@ -1833,10 +1832,15 @@
         const st = computeSelectionStats();
         tsv.push('');
         tsv.push('[선택과목 통계]');
-        tsv.push(['학년', '일반', '진로', '융합', '5등급 산출', '비산출', '소계'].join('\t'));
-        tsv.push(['2학년', String(st.g2.일반), String(st.g2.진로), String(st.g2.융합), String(st.g2.산출), String(st.g2.비산출), String(st.g2.total)].join('\t'));
-        tsv.push(['3학년', String(st.g3.일반), String(st.g3.진로), String(st.g3.융합), String(st.g3.산출), String(st.g3.비산출), String(st.g3.total)].join('\t'));
-        tsv.push(['합계', String(st.g2.일반+st.g3.일반), String(st.g2.진로+st.g3.진로), String(st.g2.융합+st.g3.융합), String(st.g2.산출+st.g3.산출), String(st.g2.비산출+st.g3.비산출), String(st.g2.total+st.g3.total)].join('\t'));
+        tsv.push(['학기', '일반', '진로', '융합', '5등급 산출', '비산출', '소계'].join('\t'));
+        const semNames = { '2-1':'2학년 1학기','2-2':'2학년 2학기','3-1':'3학년 1학기','3-2':'3학년 2학기' };
+        const sumAll = { 일반:0, 진로:0, 융합:0, 산출:0, 비산출:0, total:0 };
+        ['2-1','2-2','3-1','3-2'].forEach(sk => {
+            const g = st[sk];
+            tsv.push([semNames[sk], String(g.일반), String(g.진로), String(g.융합), String(g.산출), String(g.비산출), String(g.total)].join('\t'));
+            sumAll.일반+=g.일반; sumAll.진로+=g.진로; sumAll.융합+=g.융합; sumAll.산출+=g.산출; sumAll.비산출+=g.비산출; sumAll.total+=g.total;
+        });
+        tsv.push(['합계', String(sumAll.일반), String(sumAll.진로), String(sumAll.융합), String(sumAll.산출), String(sumAll.비산출), String(sumAll.total)].join('\t'));
 
         const text = tsv.join('\n');
         const button = document.getElementById('copySelectionBtn');
