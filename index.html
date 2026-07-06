@@ -477,6 +477,47 @@
         body.mobile-mode .course-item { font-size: 0.82rem; }
         body.mobile-mode .course-item .course-name { font-size: 0.85rem; }
         body.mobile-mode .check-box { font-size: 20px; }
+
+        /* ── 과목 선택 가이드 탭 ── */
+        .guide-sub-btn {
+            padding: 8px 16px;
+            border: 1px solid #cbd5e1;
+            border-radius: 20px;
+            background: white;
+            font-size: 0.84rem;
+            font-weight: 700;
+            color: #475569;
+            cursor: pointer;
+        }
+        .guide-sub-btn.active {
+            background: var(--md-sys-color-primary);
+            border-color: var(--md-sys-color-primary);
+            color: white;
+        }
+        .guide-subject-btn {
+            padding: 6px 13px;
+            border: 1px solid #e2b3c1;
+            border-radius: 16px;
+            background: #fff5f7;
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: #8a1c3e;
+            cursor: pointer;
+        }
+        .guide-subject-btn.active {
+            background: #8a1c3e;
+            border-color: #8a1c3e;
+            color: white;
+        }
+        .guide-page-img {
+            display: block;
+            width: 100%;
+            max-width: 920px;
+            margin: 0 auto 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            box-shadow: 0 1px 4px rgba(15,23,42,0.08);
+        }
     </style>
 </head>
 <body>
@@ -526,6 +567,10 @@
         필수 이수 충족 확인
     </button>
     <button class="main-tab-btn" onclick="switchTab('admission')">대입 권장과목 검색</button>
+    <button class="main-tab-btn" onclick="switchTab('guide')">
+        <span class="material-icons-round" style="font-size:14px;vertical-align:middle;">menu_book</span>
+        과목 선택 가이드
+    </button>
     <button class="main-tab-btn utility" onclick="switchTab('full')" style="display:none;">원자료 표</button>
 </div>
 
@@ -627,6 +672,41 @@
         <div id="fulfillmentLabels" style="display:flex; justify-content:space-around; gap:8px; padding-top:8px;"></div>
 
         <div id="fulfillmentSummary" style="margin-top:22px;"></div>
+    </div>
+</div>
+
+<div id="tab-guide" class="hidden" style="flex:1; overflow:auto; padding:16px; background:#f1f3f6;">
+    <div style="max-width:980px; margin:0 auto;">
+        <!-- 하위 탭 버튼 -->
+        <div style="display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;">
+            <button id="guideSubBtn-overview" class="guide-sub-btn active" onclick="switchGuideSub('overview')">계열별 권장 선택과목 한눈에 보기</button>
+            <button id="guideSubBtn-grade3" class="guide-sub-btn" onclick="switchGuideSub('grade3')">3학년 선택과목 안내서</button>
+        </div>
+
+        <!-- 하위탭 1: 계열별 권장 선택과목 (p25~27) -->
+        <div id="guideSub-overview">
+            <div style="background:white; border:1px solid #dbe3ef; border-radius:12px; padding:18px; box-shadow:0 2px 5px rgba(15,23,42,0.06);">
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+                    <span class="material-icons-round" style="color:var(--md-sys-color-primary);">grid_view</span>
+                    <h2 style="margin:0; font-size:1rem; color:#0f172a;">계열별 권장 선택과목 한눈에 보기</h2>
+                    <span style="font-size:0.72rem; color:#94a3b8;">(충남교육청 계열별 과목 선택 예시 자료)</span>
+                </div>
+                <div id="guideOverviewImgs"></div>
+            </div>
+        </div>
+
+        <!-- 하위탭 2: 3학년 선택과목 안내서 (p80~132) -->
+        <div id="guideSub-grade3" class="hidden">
+            <div style="background:white; border:1px solid #dbe3ef; border-radius:12px; padding:18px; box-shadow:0 2px 5px rgba(15,23,42,0.06);">
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+                    <span class="material-icons-round" style="color:var(--md-sys-color-primary);">auto_stories</span>
+                    <h2 style="margin:0; font-size:1rem; color:#0f172a;">2025·2026학년도 입학생 3학년 선택과목 안내서</h2>
+                </div>
+                <!-- 과목군 하위탭 -->
+                <div id="guideSubjectBar" style="display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap;"></div>
+                <div id="guideSubjectImgs"></div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -1043,11 +1123,77 @@
         document.getElementById('tab-admission').classList.toggle('hidden', tab !== 'admission');
         document.getElementById('tab-upload').classList.toggle('hidden', tab !== 'upload');
         document.getElementById('tab-fulfillment').classList.toggle('hidden', tab !== 'fulfillment');
+        document.getElementById('tab-guide').classList.toggle('hidden', tab !== 'guide');
         document.querySelectorAll('.main-tab-btn').forEach(btn => btn.classList.toggle('active', btn.getAttribute('onclick').includes(tab)));
         if (tab === 'full') renderFullView();
         else if (tab === 'admission') initAdmissionSearch();
         else if (tab === 'fulfillment') renderFulfillmentChart();
+        else if (tab === 'guide') initGuideTab();
         else { renderStudentBanner(); setTimeout(drawPaths, 100); }
+    }
+
+    // =====================================================================
+    // 과목 선택 가이드 탭 (가이드북 PDF 이미지)
+    // =====================================================================
+    const GUIDE_IMG_DIR = 'guide';   // 저장소의 guide/ 폴더
+    const GUIDE_OVERVIEW_PAGES = [25, 26, 27];
+    const GUIDE_SUBJECTS = [
+        { key: '국어',   pages: [80, 84] },
+        { key: '수학',   pages: [85, 89] },
+        { key: '영어',   pages: [90, 94] },
+        { key: '사회',   pages: [95, 103] },
+        { key: '과학',   pages: [104, 116] },
+        { key: '체육',   pages: [117, 118] },
+        { key: '예술',   pages: [119, 123] },
+        { key: '기타',   pages: [124, 132], label: '기술·가정/정보 · 제2외국어/한문 · 교양' },
+    ];
+    let guideInitialized = false;
+    let currentGuideSubject = '국어';
+
+    function guideImgTag(p) {
+        const n = String(p).padStart(3, '0');
+        return `<img class="guide-page-img" src="${GUIDE_IMG_DIR}/guide-${n}.jpg" alt="가이드북 ${p}페이지" loading="lazy" onerror="this.outerHTML='<div style=&quot;padding:20px; text-align:center; color:#94a3b8; font-size:0.8rem; border:1px dashed #cbd5e1; border-radius:8px; margin-bottom:14px;&quot;>이미지(guide/guide-${n}.jpg)를 찾을 수 없습니다.<br>저장소에 guide 폴더가 업로드되었는지 확인해 주세요.</div>'">`;
+    }
+
+    function initGuideTab() {
+        if (guideInitialized) return;
+        // 하위탭1: 계열별 한눈에 보기
+        document.getElementById('guideOverviewImgs').innerHTML =
+            GUIDE_OVERVIEW_PAGES.map(guideImgTag).join('');
+        // 하위탭2: 과목군 바
+        renderGuideSubjectBar();
+        renderGuideSubjectImgs();
+        guideInitialized = true;
+    }
+
+    function switchGuideSub(sub) {
+        document.getElementById('guideSub-overview').classList.toggle('hidden', sub !== 'overview');
+        document.getElementById('guideSub-grade3').classList.toggle('hidden', sub !== 'grade3');
+        document.getElementById('guideSubBtn-overview').classList.toggle('active', sub === 'overview');
+        document.getElementById('guideSubBtn-grade3').classList.toggle('active', sub === 'grade3');
+    }
+
+    function renderGuideSubjectBar() {
+        const bar = document.getElementById('guideSubjectBar');
+        bar.innerHTML = GUIDE_SUBJECTS.map(s =>
+            `<button class="guide-subject-btn ${s.key===currentGuideSubject?'active':''}" title="${s.label||s.key}" onclick="selectGuideSubject('${s.key}')">${s.key}</button>`
+        ).join('');
+    }
+
+    function selectGuideSubject(key) {
+        currentGuideSubject = key;
+        renderGuideSubjectBar();
+        renderGuideSubjectImgs();
+    }
+
+    function renderGuideSubjectImgs() {
+        const subj = GUIDE_SUBJECTS.find(s => s.key === currentGuideSubject);
+        if (!subj) return;
+        const [from, to] = subj.pages;
+        const imgs = [];
+        for (let p = from; p <= to; p++) imgs.push(guideImgTag(p));
+        document.getElementById('guideSubjectImgs').innerHTML =
+            (subj.label ? `<p style="margin:0 0 10px; font-size:0.78rem; color:#64748b;">${subj.label}</p>` : '') + imgs.join('');
     }
 
     // 학기별 동적 한도 계산 (3학년 2학기 8과목 문제 해결)
